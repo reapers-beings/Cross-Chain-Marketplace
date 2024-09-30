@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
+contract CrossChainNFTMarketplace {
+    struct Listing {
+        address seller;
+        address nftContract;
+        uint256 tokenId;
+        uint256 price;
+        bool sold;
+    }
+
+    mapping(uint256 => Listing) public listings;
+    uint256 public listingCount;
+
+    function listNFT(address nftContract, uint256 tokenId, uint256 price) public {
+        IERC721 nft = IERC721(nftContract);
+        require(nft.ownerOf(tokenId) == msg.sender, "Not the owner");
+        
+        listingCount++;
+        listings[listingCount] = Listing(msg.sender, nftContract, tokenId, price, false);
+        
+        nft.transferFrom(msg.sender, address(this), tokenId);
+    }
+
+    function buyNFT(uint256 listingId) public payable {
+        Listing storage listing = listings[listingId];
+        require(!listing.sold, "Already sold");
+        require(msg.value == listing.price, "Incorrect price");
+
+        listing.sold = true;
+        IERC721(listing.nftContract).transferFrom(address(this), msg.sender, listing.tokenId);
+        payable(listing.seller).transfer(msg.value);
+    }
+}
